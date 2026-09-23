@@ -13,8 +13,8 @@ window.CONFIG = {
   /* ---------- Supabase ----------
      Supabase > Project Settings > API
      Copia "Project URL" y la clave "anon public" (NUNCA la service_role). */
-  SUPABASE_URL: "https://TU-PROYECTO.supabase.co",
-  SUPABASE_ANON_KEY: "PEGA-AQUI-TU-ANON-KEY",
+  SUPABASE_URL: "https://lxkaqhojdrchglooygyq.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4a2FxaG9qZHJjaGdsb295Z3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxOTEwNjEsImV4cCI6MjEwNTc2NzA2MX0.Bqh06dhaiD8A6No_q7UMRhOTXTA8ECO9fU5JKF7LkL8",
 
   /* ---------- PIN maestro del panel admin (/admin) ----------
      Cámbialo antes de compartir el link. */
