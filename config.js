@@ -23,15 +23,15 @@ window.CONFIG = {
   /* ---------- Jurados ----------
      - id: identificador fijo (no lo cambies después de que empiecen a calificar)
      - nombre: cómo aparece en pantalla y en el CSV
-     - pin: 4 dígitos, distinto para cada jurado
+     El jurado ingresa eligiendo su nombre (sin PIN).
      Puedes agregar o quitar jurados copiando una línea. */
   JURADOS: [
-    { id: "j1", nombre: "Santiago Castro",   pin: "4821" },
-    { id: "j2", nombre: "Steeven Yanez",     pin: "3907" },
-    { id: "j3", nombre: "Juan Pablo Aranda", pin: "6154" },
-    { id: "j4", nombre: "Yadyra Ramirez",    pin: "2768" },
-    { id: "j5", nombre: "Ronald Morillo",    pin: "9035" },
-    { id: "j6", nombre: "Henry Jarrín",      pin: "5392" },
+    { id: "j1", nombre: "Santiago Castro" },
+    { id: "j2", nombre: "Steeven Yanez" },
+    { id: "j3", nombre: "Juan Pablo Aranda" },
+    { id: "j4", nombre: "Yadyra Ramirez" },
+    { id: "j5", nombre: "Ronald Morillo" },
+    { id: "j6", nombre: "Henry Jarrín" },
   ],
 
   /* ---------- Proyectos finalistas ----------

@@ -252,10 +252,6 @@
                 ${opts}
               </select>
             </div>
-            <div class="field">
-              <label for="pin">PIN</label>
-              <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="4 dígitos">
-            </div>
             <p class="form-error" id="login-error" role="alert"></p>
             <button class="btn btn-primary btn-block" type="submit">Ingresar</button>
           </form>
@@ -263,17 +259,12 @@
         </div>
       </main>`;
 
-    const pin = $("#pin");
-    pin.addEventListener("input", () => { pin.value = pin.value.replace(/\D/g, "").slice(0, 4); });
-
     $("#login-form").addEventListener("submit", (ev) => {
       ev.preventDefault();
       const id = $("#jurado").value;
       const err = $("#login-error");
       const j = C.JURADOS.find((x) => x.id === id);
       if (!j) { err.textContent = "Selecciona tu nombre."; return; }
-      if (pin.value.length !== 4) { err.textContent = "El PIN tiene 4 dígitos."; pin.focus(); return; }
-      if (String(j.pin) !== pin.value) { err.textContent = "PIN incorrecto. Intenta de nuevo."; pin.select(); return; }
       store.set(SESSION_KEY, { id: j.id });
       S.jurado = j;
       if (location.hash) history.replaceState(null, "", location.pathname);

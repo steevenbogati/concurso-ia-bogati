@@ -107,11 +107,8 @@
     const w = [];
     if (!DB.configured) w.push("Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY en config.js.");
     else if (!DB.ready) w.push("No se pudo cargar la librería de Supabase. Revisa tu conexión a internet y recarga.");
-    const pins = C.JURADOS.map((j) => String(j.pin));
-    if (new Set(pins).size !== pins.length) w.push("Hay jurados con el mismo PIN en config.js.");
     const ids = C.JURADOS.map((j) => j.id);
     if (new Set(ids).size !== ids.length) w.push("Hay jurados con el mismo id en config.js.");
-    if (pins.some((p) => !/^\d{4}$/.test(p))) w.push("Algún PIN de jurado no tiene exactamente 4 dígitos.");
     return w;
   }
 

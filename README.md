@@ -6,7 +6,7 @@ Web app estática (HTML + CSS + JS, sin build) con Supabase como base de datos.
 index.html        Jurado: ingreso, proyectos y calificación
 admin.html        Panel admin, ranking para Zoom y CSV  (se abre en /admin)
 admin/index.html  Redirección de respaldo a admin.html
-config.js         ÚNICO archivo a editar: Supabase, PINs, jurados, proyectos, rúbrica
+config.js         ÚNICO archivo a editar: Supabase, PIN admin, jurados, proyectos, rúbrica
 css/styles.css
 js/common.js      Conexión a Supabase y utilidades
 js/app.js         Lógica del jurado
@@ -42,7 +42,7 @@ sql/schema.sql    Tablas, restricciones, RLS y Realtime
 ## 2. Revisar config.js
 
 - `ADMIN_PIN`: PIN del panel admin (actual: `731946`). Cámbialo si quieres.
-- `JURADOS`: nombre y PIN de 4 dígitos de cada jurado. No cambies los `id` una vez que empiecen a calificar.
+- `JURADOS`: nombre de cada jurado (ingresan eligiendo su nombre, sin PIN). No cambies los `id` una vez que empiecen a calificar.
 - `PROYECTOS`: links de Drive tal cual (`/view`). Cada archivo debe estar compartido como **"Cualquier persona con el enlace – Lector"**.
 
 ## 3. Publicar en GitHub Pages (10 min)
@@ -74,7 +74,7 @@ Luego el paso 4 de la opción A.
 - Jurados: `https://USUARIO.github.io/concurso-ia-bogati/`
 - Admin: `https://USUARIO.github.io/concurso-ia-bogati/admin`
 
-**Si cambias config.js después de publicar:** súbelo de nuevo y, para forzar que todos vean la versión nueva, cambia `?v=1` por `?v=2` en las etiquetas `<script>`/`<link>` de `index.html` y `admin.html`. GitHub Pages tarda 1–10 min en reflejar cambios.
+**Si cambias config.js después de publicar:** súbelo de nuevo y, para forzar que todos vean la versión nueva, sube el número `?v=2` (a `?v=3`, etc.) en las etiquetas `<script>`/`<link>` de `index.html` y `admin.html`. GitHub Pages tarda 1–10 min en reflejar cambios.
 
 ---
 
@@ -82,7 +82,7 @@ Luego el paso 4 de la opción A.
 
 | Momento | Acción en /admin |
 |---|---|
-| Hoy | Calificación **CERRADA**. Envía el link y el PIN a cada jurado por separado. |
+| Hoy | Calificación **CERRADA**. Envía el link a los jurados. |
 | Inicio de la calificación | **Abrir calificación**. Los jurados ven la rúbrica en segundos, sin recargar. |
 | Durante | Mira la tabla "Avance por jurado" (no muestra puntajes, es seguro compartir pantalla). |
 | Al terminar | **Revelar resultados** → cierra la calificación y abre el ranking. |
@@ -97,7 +97,7 @@ Luego el paso 4 de la opción A.
 - La base de datos rechaza notas fuera de rango, duplicadas o enviadas con la calificación cerrada. El total lo calcula la base de datos.
 - Los proyectos se pueden ver aunque Supabase no responda (los datos están en config.js).
 
-**Límite de seguridad conocido:** los PINs están en `config.js`, visibles para quien inspeccione el código. Adecuado para un jurado interno con link privado; no publiques el link.
+**Límite de seguridad conocido:** los jurados ingresan solo con su nombre, sin PIN. Cualquiera que tenga el link podría entrar como un jurado. Comparte el link solo con el jurado y no lo publiques. El PIN admin está en `config.js`.
 
 ---
 
@@ -107,10 +107,9 @@ Luego el paso 4 de la opción A.
 
 - [ ] `config.js` tiene la URL y la anon key reales de Supabase.
 - [ ] Abro `/admin`, ingreso con el PIN maestro y veo **"En vivo"** (punto verde) y **CERRADA**. No aparece ningún aviso rojo.
-- [ ] Abro el link de jurados desde el celular y desde la computadora: ingreso con un jurado, veo las 5 tarjetas y el aviso "La calificación se abrirá el día del evento".
+- [ ] Abro el link de jurados desde el celular y desde la computadora: ingreso eligiendo un nombre, veo las 5 tarjetas y el aviso "La calificación se abrirá el día del evento".
 - [ ] Abro los 5 proyectos: **cada documento carga dentro de la página**. Si alguno muestra "Solicitar acceso", corrige el permiso en Drive.
 - [ ] "Abrir en pestaña nueva" funciona.
-- [ ] PIN incorrecto muestra "PIN incorrecto".
 - [ ] Cierro y reabro el navegador: sigo con la sesión iniciada.
 
 **Ensayo completo (idealmente hoy mismo, 15 min)**
@@ -138,5 +137,4 @@ Luego el paso 4 de la opción A.
 
 - [ ] Computadora con cable o buena Wi-Fi; `/admin` abierto e iniciado **antes** de entrar a Zoom.
 - [ ] Ranking probado en la misma pestaña que voy a compartir.
-- [ ] Tengo a mano la lista de PINs por si un jurado lo olvida.
-- [ ] Plan B: si un jurado no puede usar la plataforma, anoto sus notas y las ingreso yo desde su sesión (ingresando con su nombre y PIN en mi navegador en ventana privada).
+- [ ] Plan B: si un jurado no puede usar la plataforma, anoto sus notas y las ingreso yo desde su sesión (eligiendo su nombre en mi navegador, en una ventana privada).
