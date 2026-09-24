@@ -12,6 +12,7 @@ js/common.js      Conexión a Supabase y utilidades
 js/app.js         Lógica del jurado
 js/admin.js       Lógica del panel y ranking
 sql/schema.sql    Tablas, restricciones, RLS y Realtime
+sql/02_puntos_adicionales.sql  Ronda de preguntas (ejecutar después de schema.sql)
 ```
 
 ---
@@ -85,11 +86,12 @@ Luego el paso 4 de la opción A.
 | Hoy | Calificación **CERRADA**. Envía el link a los jurados. |
 | Inicio de la calificación | **Abrir calificación**. Los jurados ven la rúbrica en segundos, sin recargar. |
 | Durante | Mira la tabla "Avance por jurado" (no muestra puntajes, es seguro compartir pantalla). |
-| Al terminar | **Revelar resultados** → cierra la calificación y abre el ranking. |
+| Ronda de preguntas | **Abrir ronda de preguntas**. Cada jurado suma puntos (cantidad libre) al equipo que responde primero. Puede deshacer. |
+| Al terminar | **Revelar resultados** → cierra la calificación y la ronda, y abre el ranking. |
 | Ranking en Zoom | Comparte la pestaña del navegador. **Pantalla completa** (o tecla `F`). Presiona **Espacio** o **→** para revelar del 5.º al 1.er lugar. `Esc` cierra. |
 | Después | **Exportar CSV** (se abre en Excel con columnas y tildes correctas). |
 
-**Ranking:** promedio simple del total de cada proyecto entre los jurados que lo calificaron. Desempate: mayor promedio en Impacto Económico, luego Mejora del Proceso, Calidad de Vida, Escalabilidad y Creatividad.
+**Ranking:** puntaje final = promedio de la rúbrica (entre los jurados que calificaron) + promedio de puntos adicionales (suma de puntos del equipo ÷ número de jurados). Puede pasar de 100. Desempate: mayor promedio en Impacto Económico, luego Mejora del Proceso, Calidad de Vida, Escalabilidad y Creatividad.
 
 **Confiabilidad:**
 - Cada cambio del jurado se guarda en su dispositivo al instante. Si falla internet o recarga la página, la calificación sigue en pantalla con "Tienes cambios sin guardar".
@@ -129,7 +131,8 @@ Luego el paso 4 de la opción A.
 - [ ] Supabase → SQL Editor → ejecuto:
   ```sql
   truncate table public.scores restart identity;
-  update public.settings set scoring_open = false, results_revealed = false where id = 1;
+  truncate table public.bonus restart identity;
+  update public.settings set scoring_open = false, results_revealed = false, bonus_open = false where id = 1;
   ```
 - [ ] `/admin` muestra **0 de 15** y **CERRADA**, resultados **Ocultos**.
 

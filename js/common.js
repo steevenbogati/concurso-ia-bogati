@@ -53,8 +53,13 @@
       return rows.filter((r) => ids.has(r.jurado_id));
     },
 
-    computeRanking(allRows) {
+    // Puntaje final = promedio de la rúbrica + promedio de puntos adicionales.
+    // Los puntos adicionales se promedian entre TODOS los jurados de config.js
+    // (un jurado que no sumó puntos a un equipo cuenta como 0).
+    computeRanking(allRows, allBonus) {
       const rows = U.validScores(allRows);
+      const bonus = U.validScores(allBonus || []);
+      const nJurados = C.JURADOS.length || 1;
       const keys = C.CRITERIOS.map((c) => c.key);
       const list = C.PROYECTOS.map((p) => {
         const rs = rows.filter((r) => Number(r.proyecto_id) === p.id);
@@ -62,18 +67,34 @@
         const avg = (k) => (n ? rs.reduce((a, r) => a + Number(r[k] || 0), 0) / n : 0);
         const crit = {};
         keys.forEach((k) => { crit[k] = avg(k); });
-        return { proyecto: p, votos: n, total: avg("total"), crit };
+        const total = avg("total");
+        const bonusSum = bonus
+          .filter((b) => Number(b.proyecto_id) === p.id)
+          .reduce((a, b) => a + Number(b.puntos || 0), 0);
+        const extra = bonusSum / nJurados;
+        return { proyecto: p, votos: n, total, extra, final: total + extra, crit };
       });
       list.sort((a, b) =>
+        (b.final - a.final) ||
         (b.total - a.total) ||
         keys.reduce((acc, k) => acc || (b.crit[k] - a.crit[k]), 0) ||
         (a.proyecto.id - b.proyecto.id));
       list.forEach((it, i) => {
         it.pos = i + 1;
-        const same = (o) => o && Math.abs(o.total - it.total) < 0.005;
+        const same = (o) => o && Math.abs(o.final - it.final) < 0.005;
         it.empate = same(list[i - 1]) || same(list[i + 1]);
       });
       return list;
+    },
+
+    // Suma de puntos adicionales por jurado y proyecto: { "j4|2": 15 }
+    bonusByKey(allBonus) {
+      const out = {};
+      U.validScores(allBonus || []).forEach((b) => {
+        const k = b.jurado_id + "|" + b.proyecto_id;
+        out[k] = (out[k] || 0) + Number(b.puntos || 0);
+      });
+      return out;
     },
   };
 
@@ -125,6 +146,25 @@
 
     upsertScore(row) {
       return run(client.from("scores").upsert(row, { onConflict: "jurado_id,proyecto_id" }).select().single());
+    },
+
+    getBonus(juradoId) {
+      if (!client) return run(null);
+      let q = client.from("bonus").select("*");
+      if (juradoId) q = q.eq("jurado_id", juradoId);
+      return run(q.order("created_at"));
+    },
+
+    addBonus(row) {
+      return run(client.from("bonus").insert(row).select().single());
+    },
+
+    async deleteBonus(id) {
+      const rows = await run(client.from("bonus").delete().eq("id", id).select());
+      if (!rows || !rows.length) {
+        throw Object.assign(new Error("La ronda de preguntas está cerrada"), { code: "42501" });
+      }
+      return rows[0];
     },
 
     // onStatus recibe true cuando la conexión en tiempo real está activa

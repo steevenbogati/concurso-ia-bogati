@@ -16,9 +16,12 @@
 
   const S = {
     jurado: null,
-    settings: { scoring_open: false, results_revealed: false },
+    settings: { scoring_open: false, results_revealed: false, bonus_open: false },
     settingsState: "loading", // loading | ok | error
     scores: {},   // proyecto_id -> fila guardada en Supabase
+    bonus: [],    // puntos adicionales que sumó este jurado
+    bonusBusy: false,
+    bonusStatus: null,
     drafts: {},   // proyecto_id -> { values, comentario, touched }
     status: {},   // proyecto_id -> { type, text } del último intento de guardado
     saving: false,
@@ -59,11 +62,12 @@
   function startSession() {
     route();
     if (!store.get(tutorialKey())) openTutorial();
-    if (S.started) { refreshSettings(); refreshMyScores(); return; }
+    if (S.started) { refreshSettings(); refreshMyScores(); refreshMyBonus(); return; }
     S.started = true;
 
     refreshSettings();
     refreshMyScores();
+    refreshMyBonus();
 
     DB.subscribe(["settings"], (_t, p) => { if (p.new && p.new.id === 1) applySettings(p.new); });
     setInterval(refreshSettings, POLL_MS);
@@ -73,7 +77,7 @@
     });
     window.addEventListener("online", () => {
       setNetBanner(false);
-      if (S.jurado) { refreshSettings(); refreshMyScores(); }
+      if (S.jurado) { refreshSettings(); refreshMyScores(); refreshMyBonus(); }
     });
     window.addEventListener("offline", () => setNetBanner(true));
     if (!navigator.onLine) setNetBanner(true);
@@ -89,6 +93,8 @@
     store.remove(SESSION_KEY);
     S.jurado = null;
     S.scores = {};
+    S.bonus = [];
+    S.bonusStatus = null;
     S.drafts = {};
     S.status = {};
     S.currentPid = null;
@@ -114,10 +120,30 @@
     const changed =
       S.settingsState !== "ok" ||
       s.scoring_open !== S.settings.scoring_open ||
-      s.results_revealed !== S.settings.results_revealed;
-    S.settings = { scoring_open: !!s.scoring_open, results_revealed: !!s.results_revealed };
+      s.results_revealed !== S.settings.results_revealed ||
+      !!s.bonus_open !== S.settings.bonus_open;
+    const bonusOpened = !!s.bonus_open && !S.settings.bonus_open;
+    S.settings = { scoring_open: !!s.scoring_open, results_revealed: !!s.results_revealed, bonus_open: !!s.bonus_open };
     S.settingsState = "ok";
+    if (bonusOpened) refreshMyBonus();
     if (changed) onStateChange();
+  }
+
+  async function refreshMyBonus() {
+    if (!S.jurado) return;
+    const juradoId = S.jurado.id;
+    try {
+      const rows = await DB.getBonus(juradoId);
+      if (!S.jurado || S.jurado.id !== juradoId) return;
+      S.bonus = rows;
+      if ($app.dataset.view === "list") renderBonus();
+    } catch (e) {
+      /* la tabla puede no existir todavía; se reintenta al reconectar */
+    }
+  }
+
+  function isBonusOpen() {
+    return S.settingsState === "ok" && S.settings.bonus_open;
   }
 
   async function refreshMyScores() {
@@ -326,7 +352,7 @@
      Cuenta regresiva al evento
      --------------------------------------------------------------- */
   function countdownHtml() {
-    if (!hasEvent || isOpen()) return "";
+    if (!hasEvent || isOpen() || isBonusOpen()) return "";
     const units = ["días", "horas", "min", "seg"];
     return `
       <section class="countdown" data-countdown>
@@ -406,6 +432,17 @@
             <li>Arriba verás tu avance, por ejemplo <strong>3 de ${C.PROYECTOS.length} proyectos calificados</strong>.</li>
           </ol>
           <p class="tut-note">Si se va el internet, tu calificación se queda en pantalla. Solo vuelve a presionar Guardar.</p>`,
+      },
+      {
+        title: "Ronda de preguntas",
+        body: `
+          <p>Al final del evento se harán preguntas abiertas a todos los equipos. Cuando el organizador abra la ronda, verás los ${C.PROYECTOS.length} equipos en tu pantalla principal.</p>
+          <ol class="tut-list">
+            <li>Escribe los puntos que quieras dar.</li>
+            <li>Presiona <strong>Sumar</strong> en el equipo que respondió primero.</li>
+            <li>Si te equivocas, toca <strong>Deshacer</strong>.</li>
+          </ol>
+          <p class="tut-note">Los puntos adicionales se suman a la nota de la rúbrica, así que un equipo puede pasar de 100.</p>`,
       },
     ];
   }
@@ -505,14 +542,136 @@
           <h1>Hola, ${esc(firstName(S.jurado.nombre))}</h1>
           <p class="lede">Estos son los ${C.PROYECTOS.length} proyectos finalistas. Abre cada uno para revisar su documento.</p>
         </section>
+        <div id="bonus-slot"></div>
         ${countdownHtml()}
         ${noticeHtml()}
         <ol class="cards">${cards}</ol>
       </main>` + footerHtml();
 
     bindHeader();
+    renderBonus();
     tickCountdown();
     if (keepScroll) window.scrollTo(0, y);
+  }
+
+  /* ---------------------------------------------------------------
+     Ronda de preguntas: puntos adicionales
+     --------------------------------------------------------------- */
+  function renderBonus() {
+    const slot = $("#bonus-slot");
+    if (!slot) return;
+    if (!isBonusOpen()) { slot.innerHTML = ""; return; }
+
+    // Conserva lo que el jurado haya escrito en los campos
+    const typed = {};
+    slot.querySelectorAll(".bonus-form input").forEach((i) => { typed[i.dataset.pid] = i.value; });
+
+    const mine = {};
+    S.bonus.forEach((b) => { mine[b.proyecto_id] = (mine[b.proyecto_id] || 0) + Number(b.puntos); });
+    const projName = (id) => (C.PROYECTOS.find((p) => p.id === Number(id)) || {}).nombre || `Proyecto ${id}`;
+
+    const rows = C.PROYECTOS.map((p, i) => `
+      <li class="bonus-row">
+        <div class="bonus-info">
+          <span class="card-num">${pad(i + 1)}</span>
+          <span class="bonus-name">${esc(p.nombre)}</span>
+        </div>
+        <div class="bonus-mine${mine[p.id] ? " has" : ""}">
+          <span class="bonus-sum">${mine[p.id] ? "+" + mine[p.id] : "0"}</span>
+          <small>tus puntos</small>
+        </div>
+        <form class="bonus-form" data-pid="${p.id}" novalidate>
+          <input type="number" inputmode="numeric" min="1" max="100" step="1" placeholder="Puntos"
+            aria-label="Puntos para ${esc(p.nombre)}" data-pid="${p.id}" value="${esc(typed[p.id] || "")}">
+          <button class="btn btn-primary btn-sm" type="submit"${S.bonusBusy ? " disabled" : ""}>Sumar</button>
+        </form>
+      </li>`).join("");
+
+    const recent = S.bonus.slice(-5).reverse().map((b) => `
+      <li>
+        <span><strong>+${b.puntos}</strong> · ${esc(projName(b.proyecto_id))} <span class="bonus-time">${esc(fmtTime(b.created_at))}</span></span>
+        <button class="link-btn bonus-undo" type="button" data-id="${b.id}"${S.bonusBusy ? " disabled" : ""}>Deshacer</button>
+      </li>`).join("");
+
+    const st = S.bonusStatus;
+    slot.innerHTML = `
+      <section class="bonus">
+        <p class="eyebrow eyebrow-accent">Ronda de preguntas · abierta</p>
+        <h2>Puntos adicionales</h2>
+        <p class="bonus-help">Escribe los puntos y presiona <strong>Sumar</strong> en el equipo que respondió primero. Se suman a la nota de la rúbrica y pueden pasar de 100.</p>
+        <p class="save-status bonus-status ${st ? st.type : ""}" role="status" aria-live="polite">${st ? esc(st.text) : ""}</p>
+        <ul class="bonus-list">${rows}</ul>
+        ${recent ? `<div class="bonus-log"><p class="eyebrow">Tus últimos puntos</p><ul>${recent}</ul></div>` : ""}
+      </section>`;
+
+    slot.querySelectorAll(".bonus-form").forEach((f) => {
+      f.addEventListener("submit", (ev) => { ev.preventDefault(); addBonus(Number(f.dataset.pid), f.querySelector("input")); });
+    });
+    slot.querySelectorAll(".bonus-undo").forEach((b) => {
+      b.addEventListener("click", () => undoBonus(Number(b.dataset.id)));
+    });
+  }
+
+  async function addBonus(pid, input) {
+    if (S.bonusBusy) return;
+    const p = C.PROYECTOS.find((x) => x.id === pid);
+    const pts = Math.round(Number(input.value));
+    if (!input.value.trim() || !Number.isFinite(pts) || pts < 1 || pts > 100) {
+      S.bonusStatus = { type: "err", text: "Escribe un número de puntos entre 1 y 100." };
+      renderBonus();
+      const again = $(`.bonus-form input[data-pid="${pid}"]`);
+      if (again) again.focus();
+      return;
+    }
+    S.bonusBusy = true;
+    S.bonusStatus = { type: "", text: "Guardando…" };
+    renderBonus();
+    try {
+      const row = await DB.addBonus({
+        jurado_id: S.jurado.id, jurado_nombre: S.jurado.nombre, proyecto_id: pid, puntos: pts,
+      });
+      S.bonus.push(row);
+      S.bonusStatus = { type: "ok", text: `Sumaste +${pts} a ${p.nombre} ✓` };
+      const i = $(`.bonus-form input[data-pid="${pid}"]`);
+      if (i) i.value = "";
+    } catch (e) {
+      console.error("Error al sumar puntos:", e);
+      S.bonusStatus = { type: "err", text: await bonusErrorText(e) };
+    } finally {
+      S.bonusBusy = false;
+      renderBonus();
+    }
+  }
+
+  async function undoBonus(id) {
+    if (S.bonusBusy) return;
+    const b = S.bonus.find((x) => x.id === id);
+    if (!b) return;
+    const p = C.PROYECTOS.find((x) => x.id === Number(b.proyecto_id));
+    if (!confirm(`¿Quitar +${b.puntos} de ${p ? p.nombre : "este equipo"}?`)) return;
+    S.bonusBusy = true;
+    renderBonus();
+    try {
+      await DB.deleteBonus(id);
+      S.bonus = S.bonus.filter((x) => x.id !== id);
+      S.bonusStatus = { type: "ok", text: `Se quitaron ${b.puntos} puntos ✓` };
+    } catch (e) {
+      console.error("Error al deshacer:", e);
+      S.bonusStatus = { type: "err", text: await bonusErrorText(e) };
+    } finally {
+      S.bonusBusy = false;
+      renderBonus();
+    }
+  }
+
+  async function bonusErrorText(e) {
+    const rls = e && (e.code === "42501" || /row-level security/i.test(e.message || ""));
+    if (rls) {
+      await refreshSettings();
+      if (!S.settings.bonus_open) return "La ronda de preguntas está cerrada.";
+    }
+    if (!navigator.onLine) return "Sin conexión a internet. Intenta de nuevo cuando vuelva la conexión.";
+    return "Error, intenta de nuevo.";
   }
 
   /* ---------------------------------------------------------------
@@ -590,7 +749,10 @@
     if (!open) {
       panel.dataset.mode = "notice";
       const saved = S.scores[pid];
-      panel.innerHTML = noticeHtml() + (saved
+      const bonusNote = isBonusOpen()
+        ? `<div class="notice notice-open"><strong>La ronda de preguntas está abierta.</strong> <a href="#/">Ve a la pantalla principal</a> para sumar puntos a los equipos.</div>`
+        : "";
+      panel.innerHTML = bonusNote + noticeHtml() + (saved
         ? `<div class="saved-summary"><p class="eyebrow">Tu calificación</p><p class="saved-total">${saved.total}<span> / 100</span></p></div>`
         : "");
       return;

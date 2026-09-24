@@ -605,3 +605,58 @@ body.no-scroll { overflow: hidden; }
   .progress-table th, .progress-table td { padding: 10px 8px; }
   .progress-table th .pname { max-width: 72px; }
 }
+
+/* ---------- Ronda de preguntas ---------- */
+.bonus {
+  margin: 28px 0 0;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+}
+.bonus h2 { font-size: 28px; margin-bottom: 6px; }
+.bonus-help { margin: 0 0 6px; font-size: 14px; color: var(--ink-2); }
+.bonus-status { text-align: left; margin: 0 0 8px; }
+.bonus-status:empty { display: none; }
+.bonus-list { list-style: none; margin: 0; padding: 0; }
+.bonus-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.bonus-info { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.bonus-info .card-num { margin: 0; }
+.bonus-name { font-family: var(--serif); font-size: 18px; line-height: 1.25; }
+.bonus-mine { display: flex; flex-direction: column; align-items: center; min-width: 64px; }
+.bonus-sum { font-family: var(--serif); font-size: 26px; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bonus-mine.has .bonus-sum { color: var(--accent); }
+.bonus-mine small { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.bonus-form { display: flex; gap: 8px; }
+.bonus-form input {
+  width: 84px;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font: 600 18px/1.2 var(--sans);
+  text-align: center;
+}
+.bonus-form input:focus { outline: none; border-color: var(--ink); }
+.bonus-log { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-strong); }
+.bonus-log ul { list-style: none; margin: 0; padding: 0; }
+.bonus-log li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; font-size: 14px; }
+.bonus-time { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.admin-section { margin-top: 40px; }
+
+@media (max-width: 640px) {
+  .bonus { margin-top: 20px; padding: 18px 16px; }
+  .bonus h2 { font-size: 24px; }
+  .bonus-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; }
+  .bonus-form { grid-column: 1 / -1; }
+  .bonus-form input { flex: 1; width: auto; min-height: 46px; }
+  .bonus-form .btn { min-height: 46px; padding: 0 22px; font-size: 15px; }
+  .bonus-name { font-size: 17px; }
+}

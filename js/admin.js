@@ -5,7 +5,7 @@
   "use strict";
 
   const C = window.CONFIG;
-  const { esc, store, fmtTime, fmtDateTime, fmtNum, pad, computeRanking } = window.U;
+  const { esc, store, fmtTime, fmtDateTime, fmtNum, pad, computeRanking, bonusByKey } = window.U;
   const DB = window.DB;
 
   const $root = document.getElementById("admin");
@@ -18,6 +18,8 @@
   const A = {
     settings: null,
     scores: [],
+    bonus: [],
+    bonusError: false,
     live: false,
     busy: false,
     started: false,
@@ -74,8 +76,10 @@
 
     refreshAll();
     let t = null;
-    DB.subscribe(["scores", "settings"], (table, p) => {
+    let tb = null;
+    DB.subscribe(["scores", "settings", "bonus"], (table, p) => {
       if (table === "settings" && p.new && p.new.id === 1) { A.settings = p.new; renderState(); return; }
+      if (table === "bonus") { clearTimeout(tb); tb = setTimeout(refreshBonus, 300); return; }
       clearTimeout(t);
       t = setTimeout(refreshScores, 300);
     }, (on) => { A.live = on; renderLive(); });
@@ -87,7 +91,13 @@
   }
 
   async function refreshAll() {
-    await Promise.all([refreshSettings(), refreshScores()]);
+    await Promise.all([refreshSettings(), refreshScores(), refreshBonus()]);
+  }
+
+  async function refreshBonus() {
+    try { A.bonus = await DB.getBonus(); A.bonusError = false; }
+    catch (e) { console.error(e); A.bonusError = true; }
+    renderBonus();
   }
 
   async function refreshSettings() {
@@ -151,6 +161,13 @@
           </div>
 
           <div class="box">
+            <p class="eyebrow">Ronda de preguntas</p>
+            <p class="state" id="bonus-label">—</p>
+            <p class="hint">Los jurados suman puntos adicionales al equipo que responde primero.</p>
+            <div class="box-actions"><button class="btn btn-block" id="bonus-toggle" type="button" disabled>—</button></div>
+          </div>
+
+          <div class="box">
             <p class="eyebrow">Resultados</p>
             <p class="state" id="reveal-label">—</p>
             <div class="btn-row box-actions">
@@ -166,6 +183,13 @@
           <div class="table-wrap"><table class="progress-table" id="table"></table></div>
           <p class="hint" style="margin-top:10px">Se actualiza en tiempo real. Aquí no se muestran puntajes para no adelantar resultados si compartes pantalla.</p>
         </section>
+
+        <section class="admin-section">
+          <h2 class="section-title">Puntos adicionales</h2>
+          <div id="bonus-warn"></div>
+          <div class="table-wrap"><table class="progress-table" id="bonus-table"></table></div>
+          <p class="hint" style="margin-top:10px">El puntaje final de cada equipo es el promedio de la rúbrica más el promedio de estos puntos entre los ${C.JURADOS.length} jurados.</p>
+        </section>
       </main>
       <footer class="foot">${esc(C.EVENTO.organizacion)} · ${esc(C.EVENTO.titulo)}</footer>`;
 
@@ -174,10 +198,12 @@
     $("#reveal").addEventListener("click", onReveal);
     $("#hide").addEventListener("click", hideResults);
     $("#export").addEventListener("click", exportCsv);
+    $("#bonus-toggle").addEventListener("click", toggleBonus);
 
     renderLive();
     renderState();
     renderProgress();
+    renderBonus();
   }
 
   function renderLive() {
@@ -198,6 +224,7 @@
       label.classList.remove("is-open");
       toggle.disabled = true;
       reveal.disabled = true;
+      $("#bonus-toggle").disabled = true;
       return;
     }
     label.textContent = s.scoring_open ? "ABIERTA" : "CERRADA";
@@ -210,6 +237,45 @@
     reveal.textContent = s.results_revealed ? "Ver ranking" : "Revelar resultados";
     reveal.disabled = A.busy;
     $("#hide").hidden = !s.results_revealed;
+
+    const bl = $("#bonus-label");
+    const bt = $("#bonus-toggle");
+    const hasBonus = "bonus_open" in s;
+    bl.textContent = !hasBonus ? "Sin configurar" : (s.bonus_open ? "ABIERTA" : "CERRADA");
+    bl.classList.toggle("is-open", !!s.bonus_open);
+    bt.textContent = s.bonus_open ? "Cerrar ronda de preguntas" : "Abrir ronda de preguntas";
+    bt.className = "btn btn-block " + (s.bonus_open ? "" : "btn-primary");
+    bt.disabled = A.busy || !hasBonus;
+    renderBonus();
+  }
+
+  function renderBonus() {
+    const table = $("#bonus-table");
+    if (!table) return;
+    const warn = $("#bonus-warn");
+    const missing = A.bonusError || (A.settings && !("bonus_open" in A.settings));
+    warn.innerHTML = missing
+      ? `<div class="notice notice-warn"><strong>Falta activar la ronda de preguntas en Supabase.</strong> Ejecuta el archivo sql/02_puntos_adicionales.sql en el SQL Editor y recarga esta página.</div>`
+      : "";
+    const byKey = bonusByKey(A.bonus);
+    const nJ = C.JURADOS.length || 1;
+    const head = C.PROYECTOS.map((p, i) =>
+      `<th title="${esc(p.nombre)}"><span class="pnum">${pad(i + 1)}</span><span class="pname">${esc(p.nombre)}</span></th>`).join("");
+    const body = C.JURADOS.map((j) => {
+      const cells = C.PROYECTOS.map((p) => {
+        const v = byKey[j.id + "|" + p.id] || 0;
+        return `<td class="${v ? "cell-done" : "cell-pending"}">${v ? "+" + v : "—"}</td>`;
+      }).join("");
+      return `<tr><td>${esc(j.nombre)}</td>${cells}</tr>`;
+    }).join("");
+    const foot = C.PROYECTOS.map((p) => {
+      const sum = C.JURADOS.reduce((a, j) => a + (byKey[j.id + "|" + p.id] || 0), 0);
+      return `<td>${sum ? "+" + fmtNum(sum / nJ) : "—"}</td>`;
+    }).join("");
+    table.innerHTML = `
+      <thead><tr><th>Jurado</th>${head}</tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td>Promedio que se suma</td>${foot}</tr></tfoot>`;
   }
 
   function renderProgress() {
@@ -280,17 +346,29 @@
     updateSettings({ scoring_open: open });
   }
 
+  function toggleBonus() {
+    if (!A.settings) return;
+    const open = !A.settings.bonus_open;
+    const msg = open
+      ? "¿Abrir la ronda de preguntas? Los jurados podrán sumar puntos adicionales a los equipos."
+      : "¿Cerrar la ronda de preguntas? Los jurados ya no podrán sumar ni quitar puntos.";
+    if (!confirm(msg)) return;
+    updateSettings({ bonus_open: open });
+  }
+
   async function onReveal() {
     if (!A.settings) return;
     if (!A.settings.results_revealed) {
       const expected = C.JURADOS.length * C.PROYECTOS.length;
       const pending = expected - A.scores.filter((r) =>
         C.JURADOS.some((j) => j.id === r.jurado_id) && C.PROYECTOS.some((p) => p.id === r.proyecto_id)).length;
-      let msg = "Se cerrará la calificación y se mostrará el ranking.";
+      let msg = "Se cerrarán la calificación y la ronda de preguntas, y se mostrará el ranking.";
       if (pending > 0) msg += `\n\nAtención: faltan ${pending} calificaciones por registrar.`;
       msg += "\n\n¿Revelar resultados?";
       if (!confirm(msg)) return;
-      const ok = await updateSettings({ scoring_open: false, results_revealed: true });
+      const patch = { scoring_open: false, results_revealed: true };
+      if ("bonus_open" in A.settings) patch.bonus_open = false;
+      const ok = await updateSettings(patch);
       if (!ok) return;
     }
     await openRanking();
@@ -307,24 +385,40 @@
     btn.textContent = "Exportando…";
     try {
       const rows = await DB.getScores();
+      let bonus = [];
+      try { bonus = await DB.getBonus(); } catch (e) { /* sin tabla de puntos adicionales */ }
+      const bk = bonusByKey(bonus);
       const projName = (id) => (C.PROYECTOS.find((p) => p.id === Number(id)) || {}).nombre || `Proyecto ${id}`;
       const head = ["Jurado", "N.º proyecto", "Proyecto",
         ...C.CRITERIOS.map((c) => `${c.nombre} (máx. ${c.max})`),
-        "Total (máx. 100)", "Comentario", "Última actualización"];
+        "Total rúbrica (máx. 100)", "Puntos adicionales", "Comentario", "Última actualización"];
       const lines = rows
         .slice()
         .sort((a, b) => (a.proyecto_id - b.proyecto_id) || String(a.jurado_nombre).localeCompare(b.jurado_nombre, "es"))
         .map((r) => [
           r.jurado_nombre, r.proyecto_id, projName(r.proyecto_id),
           ...C.CRITERIOS.map((c) => r[c.key]),
-          r.total, r.comentario || "", fmtDateTime(r.updated_at),
+          r.total, bk[r.jurado_id + "|" + r.proyecto_id] || 0, r.comentario || "", fmtDateTime(r.updated_at),
         ]);
+      const ranking = computeRanking(rows, bonus);
+      const summary = [
+        [],
+        ["RESULTADO FINAL"],
+        ["Puesto", "Proyecto", "Promedio rúbrica", "Promedio puntos adicionales", "Puntaje final", "Votos"],
+        ...ranking.map((it) => [it.pos, it.proyecto.nombre, fmtNum(it.total, 2), fmtNum(it.extra, 2), fmtNum(it.final, 2), it.votos]),
+      ];
+      const detail = bonus.length ? [
+        [],
+        ["PUNTOS ADICIONALES (detalle)"],
+        ["Jurado", "Proyecto", "Puntos", "Hora"],
+        ...bonus.map((b) => [b.jurado_nombre, projName(b.proyecto_id), b.puntos, fmtDateTime(b.created_at)]),
+      ] : [];
       const cell = (v) => {
         const s = String(v ?? "");
         return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
       };
       // Punto y coma + BOM: Excel en español lo abre en columnas y con tildes correctas
-      const csv = "﻿" + [head, ...lines].map((l) => l.map(cell).join(";")).join("\r\n");
+      const csv = "﻿" + [head, ...lines, ...summary, ...detail].map((l) => l.map(cell).join(";")).join("\r\n");
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       const stamp = fmtDateTime(new Date().toISOString()).replace(/[: ]/g, "-");
@@ -350,14 +444,17 @@
 
   async function openRanking() {
     let rows;
+    let bonus = [];
     try {
       rows = await DB.getScores();
+      try { bonus = await DB.getBonus(); } catch (e) { /* sin tabla de puntos adicionales */ }
     } catch (e) {
       console.error(e);
       alert("No se pudieron cargar las calificaciones. Intenta de nuevo.");
       return;
     }
-    R.items = computeRanking(rows);
+    R.items = computeRanking(rows, bonus);
+    R.hasExtra = R.items.some((it) => it.extra > 0);
     R.revealed = 0;
     R.open = true;
 
@@ -406,8 +503,10 @@
           <div class="rk-crit" style="--c:${C.CRITERIOS.length}">${crit}</div>
         </div>
         <div class="rk-score">
-          <span class="rk-total" data-target="${it.total}">0,0</span>
-          <small>de 100</small>
+          <span class="rk-total" data-target="${it.final}">0,0</span>
+          ${R.hasExtra
+            ? `<small>Rúbrica ${fmtNum(it.total)} · Preguntas +${fmtNum(it.extra)}</small>`
+            : `<small>de 100</small>`}
           <span class="rk-votes">${it.votos} ${it.votos === 1 ? "voto" : "votos"}</span>
         </div>
       </li>`;
