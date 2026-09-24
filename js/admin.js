@@ -171,7 +171,8 @@
             <p class="eyebrow">Resultados</p>
             <p class="state" id="reveal-label">—</p>
             <div class="btn-row box-actions">
-              <button class="btn btn-primary" id="reveal" type="button" disabled>Revelar resultados</button>
+              <button class="btn btn-primary" id="winners-btn" type="button" disabled>Presentar ganadores</button>
+              <button class="btn btn-secondary" id="reveal" type="button" disabled>Revelar resultados</button>
               <button class="btn btn-secondary" id="export" type="button">Exportar CSV</button>
             </div>
             <button class="link-btn" id="hide" type="button" hidden>Volver a ocultar resultados</button>
@@ -199,6 +200,7 @@
     $("#hide").addEventListener("click", hideResults);
     $("#export").addEventListener("click", exportCsv);
     $("#bonus-toggle").addEventListener("click", toggleBonus);
+    $("#winners-btn").addEventListener("click", openWinners);
 
     renderLive();
     renderState();
@@ -225,6 +227,7 @@
       toggle.disabled = true;
       reveal.disabled = true;
       $("#bonus-toggle").disabled = true;
+      $("#winners-btn").disabled = true;
       return;
     }
     label.textContent = s.scoring_open ? "ABIERTA" : "CERRADA";
@@ -234,8 +237,9 @@
     toggle.disabled = A.busy;
 
     $("#reveal-label").textContent = s.results_revealed ? "Revelados" : "Ocultos";
-    reveal.textContent = s.results_revealed ? "Ver ranking" : "Revelar resultados";
+    reveal.textContent = s.results_revealed ? "Ver ranking completo" : "Revelar resultados";
     reveal.disabled = A.busy;
+    $("#winners-btn").disabled = A.busy;
     $("#hide").hidden = !s.results_revealed;
 
     const bl = $("#bonus-label");
@@ -364,7 +368,12 @@
   }
 
   async function onReveal() {
-    if (!A.settings) return;
+    if (await ensureRevealed()) await openRanking();
+  }
+
+  // Cierra calificación y ronda de preguntas y marca resultados como revelados
+  async function ensureRevealed() {
+    if (!A.settings) return false;
     if (!A.settings.results_revealed) {
       const expected = C.JURADOS.length * C.PROYECTOS.length;
       const pending = expected - A.scores.filter((r) =>
@@ -372,13 +381,13 @@
       let msg = "Se cerrarán la calificación y la ronda de preguntas, y se mostrará el ranking.";
       if (pending > 0) msg += `\n\nAtención: faltan ${pending} calificaciones por registrar.`;
       msg += "\n\n¿Revelar resultados?";
-      if (!confirm(msg)) return;
+      if (!confirm(msg)) return false;
       const patch = { scoring_open: false, results_revealed: true };
       if ("bonus_open" in A.settings) patch.bonus_open = false;
       const ok = await updateSettings(patch);
-      if (!ok) return;
+      if (!ok) return false;
     }
-    await openRanking();
+    return true;
   }
 
   function hideResults() {
@@ -529,12 +538,12 @@
     countUp(row.querySelector(".rk-total"));
   }
 
-  function countUp(el) {
+  function countUp(el, delay = 250) {
     const target = Number(el.dataset.target) || 0;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) { el.textContent = fmtNum(target); return; }
     const dur = 1300;
-    const t0 = performance.now() + 250;
+    const t0 = performance.now() + delay;
     const tick = (now) => {
       const k = Math.min(1, Math.max(0, (now - t0) / dur));
       const eased = 1 - Math.pow(1 - k, 3);
@@ -576,6 +585,131 @@
     }
   }
 
+  /* ---------------------------------------------------------------
+     Presentación de ganadores (3.º → 2.º → 1.º), con flechas
+     --------------------------------------------------------------- */
+  const W = { open: false, step: 0, top: [], hasExtra: false, el: null };
+  const PLACE = { 1: "Primer lugar", 2: "Segundo lugar", 3: "Tercer lugar" };
+
+  async function openWinners() {
+    if (!(await ensureRevealed())) return;
+    let rows;
+    let bonus = [];
+    try {
+      rows = await DB.getScores();
+      try { bonus = await DB.getBonus(); } catch (e) { /* sin puntos adicionales */ }
+    } catch (e) {
+      console.error(e);
+      alert("No se pudieron cargar las calificaciones. Intenta de nuevo.");
+      return;
+    }
+    const items = computeRanking(rows, bonus);
+    W.top = items.slice(0, 3);
+    W.hasExtra = items.some((it) => it.extra > 0);
+    W.step = 0;
+    W.open = true;
+    if (R.open) closeRanking();
+
+    if (!W.el) {
+      W.el = document.createElement("div");
+      W.el.className = "win";
+      document.body.appendChild(W.el);
+      W.el.addEventListener("click", (ev) => {
+        const b = ev.target.closest("[data-win]");
+        if (!b) return;
+        const a = b.dataset.win;
+        if (a === "next") winNext();
+        else if (a === "prev") winPrev();
+        else if (a === "fs") toggleFullscreen();
+        else if (a === "close") closeWinners();
+      });
+    }
+    W.el.hidden = false;
+    document.body.classList.add("no-scroll");
+    renderWinners();
+  }
+
+  function winTotalSteps() { return W.top.length + 2; }
+
+  function scoreBlock(it, delay) {
+    return `
+      <div class="win-score">
+        <span class="win-num" data-target="${it.final}" data-delay="${delay}">0,0</span>
+        <span class="win-pts">puntos</span>
+        ${W.hasExtra ? `<span class="win-break">Rúbrica ${fmtNum(it.total)} · Preguntas +${fmtNum(it.extra)}</span>` : ""}
+      </div>`;
+  }
+
+  function renderWinners() {
+    const n = W.top.length;
+    const s = W.step;
+    let html;
+    if (s === 0) {
+      html = `
+        <div class="win-slide win-intro">
+          <p class="win-org">${esc(C.EVENTO.organizacion)}</p>
+          <h1 class="win-hero">Ganadores</h1>
+          <span class="win-rule"></span>
+          <p class="win-sub">${esc(C.EVENTO.titulo)}</p>
+        </div>`;
+    } else if (s <= n) {
+      const it = W.top[n - s];
+      html = `
+        <div class="win-slide win-place${it.pos === 1 ? " is-first" : ""}">
+          <p class="win-label">${esc(PLACE[it.pos] || it.pos + ".º lugar")}</p>
+          <span class="win-rule"></span>
+          <h1 class="win-name">${esc(it.proyecto.nombre)}</h1>
+          <p class="win-team">${esc(it.proyecto.integrantes.join(" · "))}</p>
+          ${scoreBlock(it, 1500)}
+          ${it.empate ? `<p class="win-tie">Empate en puntaje</p>` : ""}
+        </div>`;
+    } else {
+      const order = [W.top[1], W.top[0], W.top[2]].filter(Boolean);
+      html = `
+        <div class="win-slide win-podium-wrap">
+          <p class="win-org">${esc(C.EVENTO.titulo)}</p>
+          <h1 class="win-title">Felicitaciones</h1>
+          <div class="win-podium">
+            ${order.map((it) => `
+              <div class="win-col win-col-${it.pos}">
+                <p class="win-col-name">${esc(it.proyecto.nombre)}</p>
+                <p class="win-col-team">${esc(it.proyecto.integrantes.join(" · "))}</p>
+                <div class="win-block">
+                  <span class="win-block-pos">${it.pos}</span>
+                  <span class="win-block-pts">${fmtNum(it.final)}</span>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>`;
+    }
+    const total = winTotalSteps();
+    W.el.innerHTML = `
+      ${html}
+      <div class="win-dots">${Array.from({ length: total }, (_, i) => `<span class="${i === s ? "on" : ""}"></span>`).join("")}</div>
+      <div class="win-controls">
+        <button class="btn btn-ghost btn-sm" data-win="prev" type="button"${s === 0 ? " disabled" : ""}>←</button>
+        <button class="btn btn-ghost btn-sm" data-win="next" type="button"${s === total - 1 ? " disabled" : ""}>→</button>
+        <button class="btn btn-ghost btn-sm" data-win="fs" type="button">Pantalla completa</button>
+        <button class="btn btn-ghost btn-sm" data-win="close" type="button">Cerrar</button>
+      </div>`;
+    W.el.querySelectorAll(".win-num").forEach((el) => countUp(el, Number(el.dataset.delay) || 250));
+  }
+
+  function winNext() {
+    if (W.step < winTotalSteps() - 1) { W.step++; renderWinners(); }
+  }
+
+  function winPrev() {
+    if (W.step > 0) { W.step--; renderWinners(); }
+  }
+
+  function closeWinners() {
+    W.open = false;
+    if (W.el) { W.el.hidden = true; W.el.innerHTML = ""; }
+    document.body.classList.remove("no-scroll");
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+
   function toggleFullscreen() {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
@@ -590,6 +724,21 @@
   }
 
   function onKey(ev) {
+    if (W.open) {
+      const k = ev.key;
+      if (k === "ArrowRight" || k === "PageDown" || k === " " || k === "Enter" || k === "ArrowDown") {
+        ev.preventDefault();
+        winNext();
+      } else if (k === "ArrowLeft" || k === "PageUp" || k === "ArrowUp" || k === "Backspace") {
+        ev.preventDefault();
+        winPrev();
+      } else if (k === "f" || k === "F") {
+        toggleFullscreen();
+      } else if (k === "Escape" && !document.fullscreenElement) {
+        closeWinners();
+      }
+      return;
+    }
     if (!R.open) return;
     if (ev.key === " " || ev.key === "ArrowRight" || ev.key === "Enter" || ev.key === "PageDown") {
       if (ev.target && ev.target.tagName === "BUTTON" && ev.key !== "ArrowRight" && ev.key !== "PageDown") return;

@@ -664,3 +664,94 @@ body.no-scroll { overflow: hidden; }
 .cell-score { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
 .cell-avg { font-family: var(--serif); font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .progress-table tfoot tr + tr td { border-top: 1px solid var(--line); }
+
+/* =====================================================================
+   Presentación de ganadores
+   ===================================================================== */
+.win {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: grid;
+  place-items: center;
+  padding: 6vh 6vw;
+  background: var(--bg);
+  overflow: hidden;
+}
+.win-slide { width: 100%; max-width: 1400px; text-align: center; }
+
+.win-slide > * { opacity: 0; animation: winUp .9s cubic-bezier(.2, .7, .2, 1) forwards; }
+.win-slide > :nth-child(1) { animation-delay: .05s; }
+.win-slide > :nth-child(2) { animation-delay: .35s; }
+.win-slide > :nth-child(3) { animation-delay: .75s; }
+.win-slide > :nth-child(4) { animation-delay: 1.05s; }
+.win-slide > :nth-child(5) { animation-delay: 1.4s; }
+.win-slide > :nth-child(6) { animation-delay: 1.8s; }
+@keyframes winUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+.win-rule {
+  display: block;
+  width: 0;
+  height: 2px;
+  margin: 3vh auto;
+  background: var(--accent);
+  opacity: 1 !important;
+  animation: winRule 1s cubic-bezier(.2, .7, .2, 1) .35s forwards !important;
+}
+@keyframes winRule { from { width: 0; } to { width: min(160px, 20vw); } }
+
+.win-org { margin: 0 0 2vh; font-size: clamp(12px, 1.8vh, 18px); letter-spacing: .24em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.win-hero { font-size: clamp(56px, 16vh, 190px); line-height: 1; }
+.win-sub { margin: 0; font-size: clamp(16px, 2.8vh, 30px); color: var(--ink-2); }
+
+.win-label { margin: 0; font-size: clamp(16px, 3.2vh, 34px); letter-spacing: .26em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+.win-name { font-size: clamp(36px, 9.5vh, 120px); line-height: 1.05; max-width: 20ch; margin: 0 auto; }
+.win-team { margin: 2.4vh 0 0; font-size: clamp(16px, 3vh, 32px); color: var(--ink-2); }
+.win-score { display: flex; flex-direction: column; align-items: center; margin-top: 5vh; }
+.win-num { font-family: var(--serif); font-size: clamp(56px, 14vh, 170px); line-height: 1; font-variant-numeric: tabular-nums; }
+.win-pts { margin-top: .6vh; font-size: clamp(12px, 1.9vh, 20px); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.win-break { margin-top: 1.4vh; font-size: clamp(13px, 2vh, 22px); color: var(--ink-2); }
+.win-tie { margin: 2vh 0 0; font-size: clamp(12px, 1.8vh, 18px); color: var(--accent); }
+
+.win-place.is-first .win-label { color: var(--accent); }
+.win-place.is-first .win-num { color: var(--accent); }
+.win-place.is-first .win-name { font-size: clamp(40px, 11vh, 140px); }
+
+.win-title { font-size: clamp(40px, 9vh, 104px); margin-bottom: 6vh; }
+.win-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 2.4vw; max-width: 1200px; margin: 0 auto; }
+.win-col { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.win-col-name { margin: 0; font-family: var(--serif); font-size: clamp(16px, 3vh, 34px); line-height: 1.15; }
+.win-col-team { margin: .8vh 0 1.6vh; font-size: clamp(11px, 1.7vh, 17px); color: var(--ink-2); }
+.win-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1vh;
+  padding-top: 2.4vh;
+  border: 1px solid var(--line-strong);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
+  transform-origin: bottom;
+  animation: winGrow 1s cubic-bezier(.2, .7, .2, 1) both;
+}
+.win-col-1 .win-block { height: 34vh; background: var(--accent); border-color: var(--accent); color: #fff; animation-delay: 1.2s; }
+.win-col-2 .win-block { height: 25vh; animation-delay: .8s; }
+.win-col-3 .win-block { height: 18vh; animation-delay: .5s; }
+@keyframes winGrow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.win-block-pos { font-family: var(--serif); font-size: clamp(36px, 8vh, 96px); line-height: 1; }
+.win-block-pts { font-size: clamp(14px, 2.4vh, 26px); font-weight: 600; font-variant-numeric: tabular-nums; }
+.win-col-1 .win-col-name { color: var(--accent); }
+
+.win-dots { position: fixed; left: 50%; bottom: 3vh; transform: translateX(-50%); display: flex; gap: 8px; }
+.win-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); transition: all .3s; }
+.win-dots span.on { width: 22px; border-radius: 4px; background: var(--accent); }
+.win-controls { position: fixed; top: 14px; right: 18px; display: flex; gap: 6px; opacity: .35; transition: opacity .2s; }
+.win-controls:hover, .win-controls:focus-within { opacity: 1; }
+
+@media (max-width: 700px) {
+  .win { padding: 24px 16px 72px; }
+  .win-podium { gap: 8px; }
+  .win-controls { top: auto; bottom: 36px; left: 0; right: 0; justify-content: center; opacity: 1; }
+}
