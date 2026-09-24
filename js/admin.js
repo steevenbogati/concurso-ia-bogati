@@ -13,7 +13,7 @@
   const $ = (sel) => document.querySelector(sel);
 
   const SESSION_KEY = "bogati_admin";
-  const POLL_MS = 20000;
+  const POLL_MS = 5000;
 
   const A = {
     settings: null,

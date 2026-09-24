@@ -12,7 +12,7 @@
   const $ = (sel) => document.querySelector(sel);
 
   const SESSION_KEY = "bogati_jurado";
-  const POLL_MS = 15000;
+  const POLL_MS = 8000;
 
   const S = {
     jurado: null,
