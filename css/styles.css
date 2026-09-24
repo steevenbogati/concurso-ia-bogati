@@ -660,3 +660,7 @@ body.no-scroll { overflow: hidden; }
   .bonus-form .btn { min-height: 46px; padding: 0 22px; font-size: 15px; }
   .bonus-name { font-size: 17px; }
 }
+
+.cell-score { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cell-avg { font-family: var(--serif); font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.progress-table tfoot tr + tr td { border-top: 1px solid var(--line); }

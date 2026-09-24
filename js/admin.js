@@ -179,9 +179,9 @@
         </section>
 
         <section>
-          <h2 class="section-title">Avance por jurado</h2>
+          <h2 class="section-title">Puntajes por jurado</h2>
           <div class="table-wrap"><table class="progress-table" id="table"></table></div>
-          <p class="hint" style="margin-top:10px">Se actualiza en tiempo real. Aquí no se muestran puntajes para no adelantar resultados si compartes pantalla.</p>
+          <p class="hint" style="margin-top:10px">Total de la rúbrica (sobre 100) que guardó cada jurado. Se actualiza en tiempo real. Evita compartir esta pantalla en Zoom antes de revelar resultados.</p>
         </section>
 
         <section class="admin-section">
@@ -300,7 +300,7 @@
         const r = byKey[j.id + "|" + p.id];
         if (!r) return `<td class="cell-pending">—</td>`;
         n++;
-        return `<td class="cell-ok" title="Guardado ${esc(fmtTime(r.updated_at))}">✓</td>`;
+        return `<td class="cell-score" title="Guardado ${esc(fmtTime(r.updated_at))}">${r.total}</td>`;
       }).join("");
       const cls = n === C.PROYECTOS.length ? "cell-done complete" : "cell-done";
       return `<tr><td>${esc(j.nombre)}</td>${cells}<td class="${cls}">${n} / ${C.PROYECTOS.length}</td></tr>`;
@@ -310,11 +310,18 @@
       const n = C.JURADOS.filter((j) => byKey[j.id + "|" + p.id]).length;
       return `<td>${n} / ${C.JURADOS.length}</td>`;
     }).join("");
+    const avgRow = C.PROYECTOS.map((p) => {
+      const rs = C.JURADOS.map((j) => byKey[j.id + "|" + p.id]).filter(Boolean);
+      return `<td class="cell-avg">${rs.length ? fmtNum(rs.reduce((a, r) => a + Number(r.total), 0) / rs.length) : "—"}</td>`;
+    }).join("");
 
     table.innerHTML = `
       <thead><tr><th>Jurado</th>${head}<th>Avance</th></tr></thead>
       <tbody>${body}</tbody>
-      <tfoot><tr><td>Votos por proyecto</td>${foot}<td></td></tr></tfoot>`;
+      <tfoot>
+        <tr><td>Promedio rúbrica</td>${avgRow}<td></td></tr>
+        <tr><td>Votos por proyecto</td>${foot}<td></td></tr>
+      </tfoot>`;
   }
 
   /* ---------------------------------------------------------------
