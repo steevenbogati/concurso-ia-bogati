@@ -361,7 +361,7 @@
     R.revealed = 0;
     R.open = true;
 
-    const nJurados = new Set(rows.map((r) => r.jurado_id)).size;
+    const nJurados = new Set(window.U.validScores(rows).map((r) => r.jurado_id)).size;
     $rk.innerHTML = `
       <div class="rk">
         <header class="rk-head">

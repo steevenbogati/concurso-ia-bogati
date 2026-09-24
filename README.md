@@ -131,7 +131,7 @@ Luego el paso 4 de la opción A.
   truncate table public.scores restart identity;
   update public.settings set scoring_open = false, results_revealed = false where id = 1;
   ```
-- [ ] `/admin` muestra **0 de 30** y **CERRADA**, resultados **Ocultos**.
+- [ ] `/admin` muestra **0 de 15** y **CERRADA**, resultados **Ocultos**.
 
 **El día del evento**
 

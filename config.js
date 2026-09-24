@@ -28,9 +28,6 @@ window.CONFIG = {
      El jurado ingresa eligiendo su nombre (sin PIN).
      Puedes agregar o quitar jurados copiando una línea. */
   JURADOS: [
-    { id: "j1", nombre: "Santiago Castro" },
-    { id: "j2", nombre: "Steeven Yanez" },
-    { id: "j3", nombre: "Juan Pablo Aranda" },
     { id: "j4", nombre: "Yadyra Ramirez" },
     { id: "j5", nombre: "Ronald Morillo" },
     { id: "j6", nombre: "Henry Jarrín" },

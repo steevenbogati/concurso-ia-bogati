@@ -47,7 +47,14 @@
 
     // Promedios por proyecto, ordenados de mayor a menor.
     // Desempate: criterios en el orden de la rúbrica (Impacto Económico primero).
-    computeRanking(rows) {
+    // Solo cuenta a los jurados que están en config.js
+    validScores(rows) {
+      const ids = new Set(C.JURADOS.map((j) => j.id));
+      return rows.filter((r) => ids.has(r.jurado_id));
+    },
+
+    computeRanking(allRows) {
+      const rows = U.validScores(allRows);
       const keys = C.CRITERIOS.map((c) => c.key);
       const list = C.PROYECTOS.map((p) => {
         const rs = rows.filter((r) => Number(r.proyecto_id) === p.id);
