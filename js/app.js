@@ -27,7 +27,20 @@
   };
 
   const draftKey = (pid) => `bogati_draft_${S.jurado.id}_${pid}`;
+  const tutorialKey = () => `bogati_tutorial_${S.jurado.id}`;
   const firstName = (n) => String(n).split(" ")[0];
+
+  const EVENT_AT = C.EVENTO.inicio ? new Date(C.EVENTO.inicio) : null;
+  const hasEvent = EVENT_AT && !isNaN(EVENT_AT);
+
+  function eventLabel() {
+    if (!hasEvent) return "";
+    const s = new Intl.DateTimeFormat("es-EC", {
+      weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
+      timeZone: "America/Guayaquil",
+    }).format(EVENT_AT);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
 
   /* ---------------------------------------------------------------
      Arranque y sesión
@@ -45,6 +58,7 @@
 
   function startSession() {
     route();
+    if (!store.get(tutorialKey())) openTutorial();
     if (S.started) { refreshSettings(); refreshMyScores(); return; }
     S.started = true;
 
@@ -243,6 +257,7 @@
           <p class="eyebrow eyebrow-accent">${esc(C.EVENTO.organizacion)}</p>
           <h1>${esc(C.EVENTO.titulo)}</h1>
           <p class="lede">Ingreso del jurado</p>
+          ${hasEvent ? `<p class="cd-inline" data-countdown-inline></p>` : ""}
           <div class="rule"></div>
           <form id="login-form" novalidate>
             <div class="field">
@@ -270,6 +285,7 @@
       if (location.hash) history.replaceState(null, "", location.pathname);
       startSession();
     });
+    tickCountdown();
   }
 
   /* ---------------------------------------------------------------
@@ -286,7 +302,10 @@
           <div class="topbar-right">
             <span class="progress" id="progress">${progressText()}</span>
             <span class="who">${esc(S.jurado.nombre)}</span>
-            <button class="link-btn" id="logout" type="button">Salir</button>
+            <span class="topbar-links">
+              <button class="link-btn" id="tutorial-btn" type="button">Guía</button>
+              <button class="link-btn" id="logout" type="button">Salir</button>
+            </span>
           </div>
         </div>
       </header>`;
@@ -299,6 +318,139 @@
   function bindHeader() {
     const b = $("#logout");
     if (b) b.addEventListener("click", logout);
+    const t = $("#tutorial-btn");
+    if (t) t.addEventListener("click", openTutorial);
+  }
+
+  /* ---------------------------------------------------------------
+     Cuenta regresiva al evento
+     --------------------------------------------------------------- */
+  function countdownHtml() {
+    if (!hasEvent || isOpen()) return "";
+    const units = ["días", "horas", "min", "seg"];
+    return `
+      <section class="countdown" data-countdown>
+        <p class="eyebrow cd-title">El evento comienza en</p>
+        <div class="cd-grid">
+          ${units.map((u, i) => `<div class="cd-unit"><span class="cd-num" data-cd="${i}">--</span><span class="cd-label">${u}</span></div>`).join("")}
+        </div>
+        <p class="cd-done" hidden>El evento está por comenzar. La calificación se abrirá en cualquier momento.</p>
+        <p class="cd-when">${esc(eventLabel())} · hora de Ecuador · por Zoom</p>
+      </section>`;
+  }
+
+  function tickCountdown() {
+    if (!hasEvent) return;
+    const ms = EVENT_AT - Date.now();
+    const done = ms <= 0;
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const parts = [Math.floor(s / 86400), Math.floor((s % 86400) / 3600), Math.floor((s % 3600) / 60), s % 60];
+
+    document.querySelectorAll("[data-countdown]").forEach((el) => {
+      el.querySelector(".cd-grid").hidden = done;
+      el.querySelector(".cd-done").hidden = !done;
+      el.querySelector(".cd-title").textContent = done ? "Hoy es el evento" : "El evento comienza en";
+      if (done) return;
+      parts.forEach((v, i) => {
+        const n = el.querySelector(`[data-cd="${i}"]`);
+        const t = String(v).padStart(2, "0");
+        if (n.textContent !== t) n.textContent = t;
+      });
+    });
+
+    document.querySelectorAll("[data-countdown-inline]").forEach((el) => {
+      if (done) { el.textContent = "El evento ya comenzó."; return; }
+      const [d, h, m] = parts;
+      const txt = d > 0 ? `${d} d ${h} h ${m} min` : h > 0 ? `${h} h ${m} min` : `${m} min ${parts[3]} s`;
+      el.textContent = `Faltan ${txt} para el evento · ${eventLabel()}`;
+    });
+  }
+
+  setInterval(tickCountdown, 1000);
+
+  /* ---------------------------------------------------------------
+     Tutorial (se muestra la primera vez que entra cada jurado)
+     --------------------------------------------------------------- */
+  function tutorialSteps() {
+    const when = hasEvent ? eventLabel().toLowerCase() : "el día del evento";
+    const crit = C.CRITERIOS.map((c) =>
+      `<li><span>${esc(c.nombre)}</span><span class="tut-max">${c.max}</span></li>`).join("");
+    return [
+      {
+        title: `Hola, ${esc(firstName(S.jurado.nombre))}`,
+        body: `
+          <p>Gracias por ser parte del jurado del <strong>${esc(C.EVENTO.titulo)}</strong>.</p>
+          <p>Hoy puedes revisar con calma los ${C.PROYECTOS.length} proyectos finalistas. La calificación se abrirá durante el evento por Zoom: <strong>${esc(when)}</strong>.</p>`,
+      },
+      {
+        title: "Revisa los proyectos",
+        body: `
+          <ol class="tut-list">
+            <li>En la pantalla principal toca <strong>Ver proyecto</strong>.</li>
+            <li>Lee el documento dentro de la página. Si no carga, usa <strong>Abrir en pestaña nueva</strong>.</li>
+            <li>Muévete entre proyectos con <strong>Anterior</strong> y <strong>Siguiente</strong>.</li>
+          </ol>`,
+      },
+      {
+        title: "Califica con la rúbrica",
+        body: `
+          <p>Cuando se abra la calificación, cada proyecto mostrará 5 criterios. Mueve la barra o escribe el puntaje (números enteros). El total se suma solo.</p>
+          <ul class="tut-crit">${crit}<li class="tut-total"><span>Total</span><span class="tut-max">100</span></li></ul>`,
+      },
+      {
+        title: "Guarda cada proyecto",
+        body: `
+          <ol class="tut-list">
+            <li>Presiona <strong>Guardar calificación</strong> y espera el mensaje <span class="tut-ok">Guardado ✓</span></li>
+            <li>Puedes volver y cambiar tu nota mientras la calificación siga abierta.</li>
+            <li>Arriba verás tu avance, por ejemplo <strong>3 de ${C.PROYECTOS.length} proyectos calificados</strong>.</li>
+          </ol>
+          <p class="tut-note">Si se va el internet, tu calificación se queda en pantalla. Solo vuelve a presionar Guardar.</p>`,
+      },
+    ];
+  }
+
+  function openTutorial() {
+    if (document.querySelector(".tut-backdrop")) return;
+    const steps = tutorialSteps();
+    let i = 0;
+    const el = document.createElement("div");
+    el.className = "tut-backdrop";
+    el.innerHTML = `<div class="tut" role="dialog" aria-modal="true" aria-labelledby="tut-title"></div>`;
+    document.body.appendChild(el);
+    document.body.classList.add("no-scroll");
+    const box = el.querySelector(".tut");
+
+    const close = () => {
+      store.set(tutorialKey(), true);
+      el.remove();
+      document.body.classList.remove("no-scroll");
+      document.removeEventListener("keydown", onKey);
+    };
+    const onKey = (ev) => { if (ev.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+
+    const render = () => {
+      const last = i === steps.length - 1;
+      box.innerHTML = `
+        <div class="tut-top">
+          <p class="eyebrow eyebrow-accent">Guía rápida · ${i + 1} de ${steps.length}</p>
+          <button class="link-btn tut-skip" type="button">Omitir</button>
+        </div>
+        <h2 id="tut-title">${steps[i].title}</h2>
+        <div class="tut-body">${steps[i].body}</div>
+        <div class="tut-dots">${steps.map((_, k) => `<span class="${k === i ? "on" : ""}"></span>`).join("")}</div>
+        <div class="tut-actions">
+          ${i > 0 ? `<button class="btn btn-secondary tut-prev" type="button">Anterior</button>` : "<span></span>"}
+          <button class="btn btn-primary tut-next" type="button">${last ? "Empezar" : "Siguiente"}</button>
+        </div>`;
+      box.querySelector(".tut-skip").addEventListener("click", close);
+      box.querySelector(".tut-next").addEventListener("click", () => { if (last) close(); else { i++; render(); } });
+      const prev = box.querySelector(".tut-prev");
+      if (prev) prev.addEventListener("click", () => { i--; render(); });
+      box.querySelector(".tut-next").focus();
+    };
+    render();
   }
 
   function noticeHtml() {
@@ -353,11 +505,13 @@
           <h1>Hola, ${esc(firstName(S.jurado.nombre))}</h1>
           <p class="lede">Estos son los ${C.PROYECTOS.length} proyectos finalistas. Abre cada uno para revisar su documento.</p>
         </section>
+        ${countdownHtml()}
         ${noticeHtml()}
         <ol class="cards">${cards}</ol>
       </main>` + footerHtml();
 
     bindHeader();
+    tickCountdown();
     if (keepScroll) window.scrollTo(0, y);
   }
 
@@ -458,7 +612,7 @@
         </div>
         <p class="crit-desc">${esc(c.descripcion)}</p>
         <div class="crit-inputs">
-          <input type="range" id="r-${c.key}" min="0" max="${c.max}" step="1" value="${unset ? 0 : val}" aria-label="${esc(c.nombre)}">
+          <input type="range" id="r-${c.key}" min="0" max="${c.max}" step="1" value="${unset ? 0 : val}" aria-label="${esc(c.nombre)}" style="--fill:${unset ? 0 : (val / c.max) * 100}%">
           <input type="number" id="n-${c.key}" min="0" max="${c.max}" step="1" inputmode="numeric" value="${unset ? "" : val}" placeholder="—">
         </div>
         <p class="crit-error" id="e-${c.key}" role="alert"></p>
@@ -479,14 +633,16 @@
           <label for="comentario">Comentario <span class="opt">(opcional)</span></label>
           <textarea id="comentario" rows="3" maxlength="2000" placeholder="Observaciones sobre el proyecto">${esc(d.comentario)}</textarea>
         </div>
-        <div class="rubric-total">
-          <span class="rubric-total-label">Total</span>
-          <strong id="total">—</strong>
-          <span class="of">/ 100</span>
+        <div class="rubric-foot">
+          <div class="rubric-total">
+            <span class="rubric-total-label">Total</span>
+            <strong id="total">—</strong>
+            <span class="of">/ 100</span>
+          </div>
+          <p class="missing" id="missing"></p>
+          <button type="submit" class="btn btn-primary btn-block" id="save">Guardar calificación</button>
+          <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
         </div>
-        <p class="missing" id="missing"></p>
-        <button type="submit" class="btn btn-primary btn-block" id="save">Guardar calificación</button>
-        <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
       </form>`;
   }
 
@@ -494,6 +650,8 @@
     const d = S.drafts[pid];
 
     const setVal = (key, v) => {
+      const c = C.CRITERIOS.find((x) => x.key === key);
+      $("#r-" + key).style.setProperty("--fill", v == null ? "0%" : `${(v / c.max) * 100}%`);
       d.values[key] = v;
       d.touched = true;
       S.status[pid] = null;

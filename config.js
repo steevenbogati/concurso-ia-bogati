@@ -8,6 +8,8 @@ window.CONFIG = {
   EVENTO: {
     titulo: "Concurso de Automatización con IA",
     organizacion: "Bogati Sabor Adictivo",
+    // Inicio del evento por Zoom (hora de Ecuador, UTC-5). Controla la cuenta regresiva.
+    inicio: "2026-09-24T15:00:00-05:00",
   },
 
   /* ---------- Supabase ----------
